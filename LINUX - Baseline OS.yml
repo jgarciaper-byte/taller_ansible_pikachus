@@ -1,0 +1,51 @@
+---
+- name: Linux - Baseline operativo
+  hosts: os_linux
+  become: true
+  gather_facts: true
+
+  vars:
+    servicios_linux:
+      - sshd
+      - crond
+
+    usuario_ansible: ansible
+
+  tasks:
+    - name: Validar espacio en disco
+      ansible.builtin.command: df -h
+      register: resultado_disco
+      changed_when: false
+
+    - name: Mostrar espacio en disco
+      ansible.builtin.debug:
+        var: resultado_disco.stdout_lines
+
+    - name: Obtener información de servicios
+      ansible.builtin.service_facts:
+
+    - name: Verificar servicios Linux
+      ansible.builtin.debug:
+        msg: "Servicio {{ item }} estado: {{ ansible_facts.services[item + '.service'].state | default('No encontrado') }}"
+      loop: "{{ servicios_linux }}"
+
+    - name: Crear usuario ansible
+      ansible.builtin.user:
+        name: "{{ usuario_ansible }}"
+        state: present
+        shell: /bin/bash
+        groups: wheel
+        append: true
+
+    - name: Configurar sudo sin password para usuario ansible
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ usuario_ansible }}"
+        content: "{{ usuario_ansible }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+
+    - name: Actualizar sistema operativo RHEL
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
