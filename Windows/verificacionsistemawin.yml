@@ -2,6 +2,7 @@
 - name: Verificaciones y configuracion en servidores Windows
   hosts: all
   gather_facts: yes
+
   vars:
     usuario_ansible: ansible
     servicios_criticos:
@@ -17,28 +18,29 @@
 
     - name: Verificar uso de CPU
       ansible.windows.win_shell: |
-        Get-Counter '\Processor(_Total)\% Processor Time'
+        (Get-Counter '\Processor(_Total)\% Processor Time').CounterSamples.CookedValue
       register: cpu_usage
 
     - name: Mostrar uso de CPU
       debug:
-        var: cpu_usage.stdout_lines
+        msg: "Uso de CPU: {{ cpu_usage.stdout }} %"
 
-    - name: Verificar estado de servicios criticos
+    - name: Obtener informacion de servicios criticos
       ansible.windows.win_service_info:
         name: "{{ item }}"
       loop: "{{ servicios_criticos }}"
       register: servicios_estado
 
-    - name: Mostrar estado de servicios
+    - name: Mostrar estado de servicios (corregido)
       debug:
-        msg: "Servicio {{ item.name }} esta {{ item.state }}"
+        msg: >-
+          Servicio {{ item.item }} esta
+          {{ item.services[0].state if (item.services | length > 0) else 'no encontrado' }}
       loop: "{{ servicios_estado.results }}"
 
     - name: Crear usuario ansible
       ansible.windows.win_user:
         name: "{{ usuario_ansible }}"
-        password: "P@ssw0rd123!"   # Cambiar por una contraseña segura
         state: present
         groups:
           - Users
@@ -51,9 +53,9 @@
         state: searched
       register: updates
 
-    - name: Mostrar actualizaciones disponibles
+    - name: Mostrar cantidad de actualizaciones disponibles
       debug:
-        var: updates.found_update_count
+        msg: "Actualizaciones disponibles: {{ updates.found_update_count }}"
 
     - name: Instalar actualizaciones si existen
       ansible.windows.win_updates:
